@@ -18,24 +18,20 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: android
-            buildCommand: flutter build apk --release && mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/NodeRadio-Android-${{ github.ref_name }}.apk
-            artifactPath: build/app/outputs/flutter-apk/NodeRadio-Android*.apk
-
+            buildCommand: flutter build apk --release
+            
           - os: macos-latest
             platform: ios
             # Use no-codesign to bypass apple developer cert requirements on CI
-            buildCommand: flutter build ios --release --no-codesign && mkdir -p build/ios/Payload && cp -R build/ios/iphoneos/Runner.app build/ios/Payload/ && cd build/ios && zip -ry NodeRadio-iOS-${{ github.ref_name }}.zip Payload/
-            artifactPath: build/ios/NodeRadio-iOS-*.zip
+            buildCommand: flutter build ios --release --no-codesign
 
           - os: macos-latest
             platform: macos
-            buildCommand: flutter build macos --release && cd build/macos/Build/Products/Release && zip -ry NodeRadio-macOS-${{ github.ref_name }}.zip noderadio.app
-            artifactPath: build/macos/Build/Products/Release/NodeRadio-macOS-*.zip
+            buildCommand: flutter build macos --release
 
           - os: windows-latest
             platform: windows
-            buildCommand: flutter build windows --release && cd build\windows\x64\runner\Release && out_file="NodeRadio-Windows-${{ github.ref_name }}.zip" && Compress-Archive -Path * -DestinationPath "$out_file"
-            artifactPath: build/windows/x64/runner/Release/NodeRadio-Windows-*.zip
+            buildCommand: flutter build windows --release
 
     permissions:
       contents: write
@@ -69,8 +65,41 @@ jobs:
       - name: Build Artifacts
         run: ${{ matrix.buildCommand }}
 
+      - name: Package Android
+        if: matrix.platform == 'android'
+        shell: bash
+        run: |
+          mv build/app/outputs/flutter-apk/app-release.apk NodeRadio-Android-${{ github.ref_name }}.apk
+
+      - name: Package iOS
+        if: matrix.platform == 'ios'
+        shell: bash
+        run: |
+          mkdir -p build/ios/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/Payload/
+          cd build/ios
+          zip -ry ../../NodeRadio-iOS-${{ github.ref_name }}.zip Payload/
+
+      - name: Package macOS
+        if: matrix.platform == 'macos'
+        shell: bash
+        run: |
+          cd build/macos/Build/Products/Release
+          zip -ry ../../../../../NodeRadio-macOS-${{ github.ref_name }}.zip noderadio.app
+
+      - name: Package Windows
+        if: matrix.platform == 'windows'
+        shell: bash
+        run: |
+          cd build/windows/x64/runner/Release
+          zip -r ../../../../../NodeRadio-Windows-${{ github.ref_name }}.zip .
+
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
-          files: ${{ matrix.artifactPath }}
+          files: |
+            NodeRadio-Android-*.apk
+            NodeRadio-iOS-*.zip
+            NodeRadio-macOS-*.zip
+            NodeRadio-Windows-*.zip
