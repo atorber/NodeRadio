@@ -1,4 +1,4 @@
-name: app
+name: NodeRadio
 description: "A new Flutter project."
 # The following line prevents the package from being accidentally published to
 # pub.dev using `flutter pub publish`. This is preferred for private packages.
@@ -35,6 +35,9 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   google_fonts: ^8.0.2
+  webview_flutter: ^4.10.0
+  shared_preferences: ^2.3.0
+  simple_pip_mode: ^1.1.0
 
 dev_dependencies:
   flutter_test:

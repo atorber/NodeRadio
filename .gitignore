@@ -28,13 +28,5 @@
 .pub-cache/
 .pub/
 /build/
-/android/
-/ios/
-/linux/
-/macos/
-/web/
-/windows/
-/test/
 
-# Exceptions to above rules.
 !/packages/**/lib/

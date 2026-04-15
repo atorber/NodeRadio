@@ -3,7 +3,7 @@ import '../theme.dart';
 import 'dart:ui';
 import 'channels_screen.dart';
 import 'add_channel_screen.dart';
-import 'playback_screen.dart';
+
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -15,11 +15,7 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
 
-  static const List<Widget> _widgetOptions = <Widget>[
-    ChannelsScreen(),
-    PlaybackScreen(),
-    AddChannelScreen(),
-  ];
+  final GlobalKey<_ChannelsScreenWrapperState> _channelsKey = GlobalKey();
 
   void _onItemTapped(int index) {
     setState(() {
@@ -27,11 +23,25 @@ class _MainScreenState extends State<MainScreen> {
     });
   }
 
+  void _onChannelAdded() {
+    // Switch to channels tab and reload
+    setState(() {
+      _selectedIndex = 0;
+    });
+    _channelsKey.currentState?.reload();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       extendBody: true,
-      body: _widgetOptions.elementAt(_selectedIndex),
+      body: IndexedStack(
+        index: _selectedIndex,
+        children: [
+          _ChannelsScreenWrapper(key: _channelsKey),
+          AddChannelScreen(onChannelAdded: _onChannelAdded),
+        ],
+      ),
       bottomNavigationBar: ClipRRect(
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -53,8 +63,7 @@ class _MainScreenState extends State<MainScreen> {
                   mainAxisAlignment: MainAxisAlignment.spaceAround,
                   children: [
                     _buildNavItem(0, Icons.grid_view_rounded, '频道'),
-                    _buildNavItem(1, Icons.play_circle_fill, '播放'),
-                    _buildNavItem(2, Icons.add_circle_outline, '添加'),
+                    _buildNavItem(1, Icons.add_circle_outline, '添加'),
                   ],
                 ),
               ),
@@ -98,5 +107,26 @@ class _MainScreenState extends State<MainScreen> {
         ),
       ),
     );
+  }
+}
+
+/// Wrapper to expose reload method via GlobalKey
+class _ChannelsScreenWrapper extends StatefulWidget {
+  const _ChannelsScreenWrapper({super.key});
+
+  @override
+  State<_ChannelsScreenWrapper> createState() => _ChannelsScreenWrapperState();
+}
+
+class _ChannelsScreenWrapperState extends State<_ChannelsScreenWrapper> {
+  final GlobalKey<ChannelsScreenState> _innerKey = GlobalKey();
+
+  void reload() {
+    _innerKey.currentState?.reload();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ChannelsScreen(key: _innerKey);
   }
 }

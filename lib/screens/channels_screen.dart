@@ -1,8 +1,61 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
+import '../models/channel.dart';
+import 'webview_player_screen.dart';
 
-class ChannelsScreen extends StatelessWidget {
+class ChannelsScreen extends StatefulWidget {
   const ChannelsScreen({super.key});
+
+  @override
+  State<ChannelsScreen> createState() => ChannelsScreenState();
+}
+
+class ChannelsScreenState extends State<ChannelsScreen> {
+  List<Channel> _channels = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadChannels();
+  }
+
+  Future<void> _loadChannels() async {
+    final channels = await ChannelStore.load();
+    if (mounted) {
+      setState(() {
+        _channels = channels;
+        _isLoading = false;
+      });
+    }
+  }
+
+  void _openChannel(Channel channel) {
+    if (channel.isWebPlayable) {
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => WebViewPlayerScreen(channel: channel),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('暂不支持 ${channel.typeLabel} 类型的播放'),
+          backgroundColor: AppTheme.surfaceContainerHigh,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+    }
+  }
+
+  Future<void> _deleteChannel(Channel channel) async {
+    await ChannelStore.remove(channel.id);
+    _loadChannels();
+  }
+
+  /// Reload channels from outside (called after adding a new channel)
+  void reload() => _loadChannels();
 
   @override
   Widget build(BuildContext context) {
@@ -29,12 +82,8 @@ class ChannelsScreen extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: AppTheme.onSurfaceVariant),
-            onPressed: () {},
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings, color: AppTheme.onSurfaceVariant),
-            onPressed: () {},
+            icon: const Icon(Icons.refresh, color: AppTheme.onSurfaceVariant),
+            onPressed: _loadChannels,
           ),
           const SizedBox(width: 8),
         ],
@@ -46,7 +95,17 @@ class ChannelsScreen extends StatelessWidget {
           children: [
             _buildHeader(context),
             const SizedBox(height: 32),
-            _buildBentoGrid(),
+            if (_isLoading)
+              const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(48),
+                  child: CircularProgressIndicator(color: AppTheme.primary),
+                ),
+              )
+            else if (_channels.isEmpty)
+              _buildEmptyState(context)
+            else
+              _buildChannelList(),
             const SizedBox(height: 48),
             _buildSystemStatusBar(context),
           ],
@@ -73,7 +132,7 @@ class ChannelsScreen extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '4 个活跃流媒体源',
+              '${_channels.length} 个频道',
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: AppTheme.onSurfaceVariant,
                     fontWeight: FontWeight.w500,
@@ -85,7 +144,52 @@ class ChannelsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildBentoGrid() {
+  Widget _buildEmptyState(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 64, horizontal: 32),
+      decoration: BoxDecoration(
+        color: AppTheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppTheme.outlineVariant.withValues(alpha: 0.1),
+        ),
+      ),
+      child: Column(
+        children: [
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: const Icon(Icons.sensors_off, color: AppTheme.onSurfaceVariant, size: 36),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            '还没有频道',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.onSurface,
+                ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '点击底部「添加」标签来创建你的第一个频道\n支持飞书直播、HLS、Web 等类型',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: AppTheme.onSurfaceVariant,
+              fontSize: 14,
+              height: 1.6,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildChannelList() {
     return GridView.count(
       crossAxisCount: 2,
       crossAxisSpacing: 16,
@@ -93,80 +197,44 @@ class ChannelsScreen extends StatelessWidget {
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       childAspectRatio: 0.9,
-      children: [
-        _buildChannelCard(
-          icon: Icons.videocam,
-          title: '主要直播出口 A',
-          subtitle: 'RTMP 转发 • 1080p60',
-          status: '直播中',
-          isLive: true,
-          stats1Icon: Icons.visibility,
-          stats1Text: '1,240',
-          stats2Icon: Icons.schedule,
-          stats2Text: '02:45:12',
-          iconColor: AppTheme.primary,
-        ),
-        _buildChannelCard(
-          icon: Icons.star,
-          title: '备用服务器 02',
-          subtitle: 'SRT 安全传输模式',
-          status: '待命',
-          isLive: false,
-          stats1Icon: Icons.dns,
-          stats1Text: '北京节点',
-          iconColor: AppTheme.secondary,
-          iconText: '优秀',
-        ),
-        _buildChannelCard(
-          icon: Icons.movie,
-          title: '私人预览流',
-          subtitle: 'WebRTC • 极低延迟模式',
-          status: '直播中',
-          isLive: true,
-          stats1Icon: Icons.speed,
-          stats1Text: '12ms 延迟',
-          stats1Color: AppTheme.primary,
-          iconColor: AppTheme.primary,
-          borderLeftColor: AppTheme.primary,
-        ),
-        _buildChannelCard(
-          icon: Icons.cloud_off,
-          title: '归档测试频道',
-          subtitle: '无活跃推流',
-          status: '离线',
-          isLive: false,
-          iconColor: AppTheme.outline,
-          isOffline: true,
-        ),
-      ],
+      children: _channels.map((ch) => _buildChannelCard(ch)).toList(),
     );
   }
 
-  Widget _buildChannelCard({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-    required String status,
-    required bool isLive,
-    IconData? stats1Icon,
-    String? stats1Text,
-    Color? stats1Color,
-    IconData? stats2Icon,
-    String? stats2Text,
-    required Color iconColor,
-    String? iconText,
-    Color? borderLeftColor,
-    bool isOffline = false,
-  }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppTheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        border: borderLeftColor != null ? Border(left: BorderSide(color: borderLeftColor, width: 4)) : null,
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Opacity(
-        opacity: isOffline ? 0.6 : 1.0,
+  Widget _buildChannelCard(Channel channel) {
+    final IconData icon;
+    final Color iconColor;
+    switch (channel.type) {
+      case ChannelType.feishu:
+        icon = Icons.video_chat;
+        iconColor = AppTheme.primary;
+      case ChannelType.hls:
+        icon = Icons.live_tv;
+        iconColor = AppTheme.secondary;
+      case ChannelType.rtmp:
+        icon = Icons.videocam;
+        iconColor = AppTheme.tertiary;
+      case ChannelType.web:
+        icon = Icons.language;
+        iconColor = AppTheme.secondaryDim;
+      case ChannelType.unknown:
+        icon = Icons.help_outline;
+        iconColor = AppTheme.outline;
+    }
+
+    return GestureDetector(
+      onTap: () => _openChannel(channel),
+      onLongPress: () => _showDeleteDialog(channel),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        decoration: BoxDecoration(
+          color: AppTheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: channel.type == ChannelType.feishu
+              ? Border(left: BorderSide(color: AppTheme.primary, width: 4))
+              : null,
+        ),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -182,33 +250,36 @@ class ChannelsScreen extends StatelessWidget {
                     color: AppTheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Center(
-                    child: iconText != null
-                        ? Text(iconText, style: TextStyle(color: iconColor, fontWeight: FontWeight.bold, fontSize: 12))
-                        : Icon(icon, color: iconColor),
-                  ),
+                  child: Center(child: Icon(icon, color: iconColor)),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: isLive ? AppTheme.tertiary.withValues(alpha: 0.1) : (isOffline ? AppTheme.surfaceContainerHighest : AppTheme.outlineVariant.withValues(alpha: 0.2)),
+                    color: channel.isWebPlayable
+                        ? AppTheme.tertiary.withValues(alpha: 0.1)
+                        : AppTheme.outlineVariant.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (isLive) ...[
+                      if (channel.isWebPlayable) ...[
                         Container(
                           width: 6,
                           height: 6,
-                          decoration: const BoxDecoration(color: AppTheme.tertiary, shape: BoxShape.circle),
+                          decoration: const BoxDecoration(
+                            color: AppTheme.tertiary,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                         const SizedBox(width: 4),
                       ],
                       Text(
-                        status,
+                        channel.isWebPlayable ? '可播放' : '待配置',
                         style: TextStyle(
-                          color: isLive ? AppTheme.tertiary : (isOffline ? AppTheme.outline : AppTheme.onSurfaceVariant),
+                          color: channel.isWebPlayable
+                              ? AppTheme.tertiary
+                              : AppTheme.onSurfaceVariant,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.2,
@@ -221,56 +292,69 @@ class ChannelsScreen extends StatelessWidget {
             ),
             const Spacer(),
             Text(
-              title,
+              channel.name,
               style: const TextStyle(
                 color: AppTheme.onSurface,
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 fontFamily: 'Manrope',
               ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
             const SizedBox(height: 4),
             Text(
-              subtitle,
+              channel.typeLabel,
               style: const TextStyle(
                 color: AppTheme.onSurfaceVariant,
                 fontSize: 12,
               ),
             ),
-            if (stats1Text != null || stats2Text != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  if (stats1Text != null) ...[
-                    Icon(stats1Icon, size: 14, color: stats1Color ?? AppTheme.onSurfaceVariant),
-                    const SizedBox(width: 4),
-                    Text(
-                      stats1Text,
-                      style: TextStyle(
-                        color: stats1Color ?? AppTheme.onSurfaceVariant,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                  ],
-                  if (stats2Text != null) ...[
-                    Icon(stats2Icon, size: 14, color: AppTheme.onSurfaceVariant),
-                    const SizedBox(width: 4),
-                    Text(
-                      stats2Text,
-                      style: const TextStyle(
-                        color: AppTheme.onSurfaceVariant,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ],
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Icon(Icons.play_circle_fill, size: 14, color: iconColor),
+                const SizedBox(width: 4),
+                const Text(
+                  '点击播放',
+                  style: TextStyle(
+                    color: AppTheme.onSurfaceVariant,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeleteDialog(Channel channel) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.surfaceContainer,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('删除频道', style: TextStyle(color: AppTheme.onSurface)),
+        content: Text(
+          '确定要删除「${channel.name}」吗？',
+          style: const TextStyle(color: AppTheme.onSurfaceVariant),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('取消', style: TextStyle(color: AppTheme.onSurfaceVariant)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _deleteChannel(channel);
+            },
+            child: const Text('删除', style: TextStyle(color: AppTheme.error)),
+          ),
+        ],
       ),
     );
   }
@@ -285,136 +369,53 @@ class ChannelsScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            '网络健康度',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
+          Row(
+            children: [
+              const Icon(Icons.info_outline, color: AppTheme.secondary, size: 20),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  '使用提示',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
                 ),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
-          Container(
-            height: 12,
-            decoration: BoxDecoration(
-              color: AppTheme.surfaceContainerLow,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  flex: 92,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(6),
-                      gradient: const LinearGradient(
-                        colors: [AppTheme.primary, AppTheme.secondary],
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppTheme.primary.withValues(alpha: 0.4),
-                          blurRadius: 10,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const Expanded(flex: 8, child: SizedBox()),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                '上传: 85.2 Mbps',
-                style: TextStyle(
-                  color: AppTheme.onSurfaceVariant,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const Text(
-                '优秀',
-                style: TextStyle(
-                  color: AppTheme.secondary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Row(
-            children: [
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Column(
-                    children: [
-                      Text(
-                        '处理器',
-                        style: TextStyle(
-                          color: AppTheme.onSurfaceVariant,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        '优秀',
-                        style: TextStyle(
-                          color: AppTheme.secondary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'Manrope',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Column(
-                    children: [
-                      Text(
-                        '内存',
-                        style: TextStyle(
-                          color: AppTheme.onSurfaceVariant,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                      SizedBox(height: 4),
-                      Text(
-                        '3.1G',
-                        style: TextStyle(
-                          color: AppTheme.primary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'Manrope',
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
+          _buildTipItem('支持飞书直播链接，通过内置浏览器播放'),
+          const SizedBox(height: 8),
+          _buildTipItem('支持 HLS (m3u8) 和通用 Web 直播地址'),
+          const SizedBox(height: 8),
+          _buildTipItem('长按频道卡片可以删除频道'),
+          const SizedBox(height: 8),
+          _buildTipItem('播放时可全屏横屏观看'),
         ],
       ),
+    );
+  }
+
+  Widget _buildTipItem(String text) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 6),
+          child: Icon(Icons.circle, size: 5, color: AppTheme.onSurfaceVariant),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              color: AppTheme.onSurfaceVariant,
+              fontSize: 13,
+              height: 1.4,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
