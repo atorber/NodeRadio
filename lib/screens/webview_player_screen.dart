@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:webview_flutter/webview_flutter.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:simple_pip_mode/pip_widget.dart';
 import 'package:simple_pip_mode/simple_pip.dart';
 import '../theme.dart';
@@ -16,7 +17,11 @@ class WebViewPlayerScreen extends StatefulWidget {
 }
 
 class _WebViewPlayerScreenState extends State<WebViewPlayerScreen> {
-  late final WebViewController _controller;
+  final GlobalKey _webViewKey = GlobalKey();
+  InAppWebViewController? _controller;
+  
+  late final InAppWebViewSettings _settings;
+  
   bool _isLoading = true;
   int _loadingProgress = 0;
   bool _isFullscreen = false;
@@ -25,40 +30,21 @@ class _WebViewPlayerScreenState extends State<WebViewPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onProgress: (progress) {
-            setState(() {
-              _loadingProgress = progress;
-            });
-          },
-          onPageStarted: (_) {
-            setState(() {
-              _isLoading = true;
-            });
-          },
-          onPageFinished: (_) {
-            setState(() {
-              _isLoading = false;
-            });
-            _injectImmersiveMode();
-          },
-          onWebResourceError: (error) {
-            debugPrint('WebView error: ${error.description}');
-          },
-        ),
-      )
-      ..setUserAgent(
-        'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 '
-        '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
-      )
-      ..loadRequest(Uri.parse(widget.channel.url));
-
-    // Enable auto PiP mode for Android 12+ 
-    // When the user puts the app in the background, it will automatically enter PiP
+    
+    _settings = InAppWebViewSettings(
+      mediaPlaybackRequiresUserGesture: false,
+      allowsInlineMediaPlayback: true,
+      allowBackgroundAudioPlaying: true,
+      userAgent: 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36',
+    );
+    
+    _initAudioSession();
     _setupPip();
+  }
+
+  Future<void> _initAudioSession() async {
+    final session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.music());
   }
 
   Future<void> _setupPip() async {
@@ -68,7 +54,7 @@ class _WebViewPlayerScreenState extends State<WebViewPlayerScreen> {
         await _pip.setAutoPipMode();
       }
     } catch (e) {
-      debugPrint('PiP setup error: $e');
+      debugPrint('PiP setup error: \$e');
     }
   }
 
@@ -79,8 +65,7 @@ class _WebViewPlayerScreenState extends State<WebViewPlayerScreen> {
       );
     }
     // Run a heuristic script that attempts to maximize the video wrapper
-    // We wrap it in a setInterval to retry for a few seconds since SPAs might load video tags asynchronously
-    _controller.runJavaScript('''
+    _controller?.evaluateJavascript(source: '''
       (function() {
         var attempts = 0;
         var maxAttempts = 10; // Try for 10 seconds
@@ -169,7 +154,7 @@ class _WebViewPlayerScreenState extends State<WebViewPlayerScreen> {
         }
       }
     } catch (e) {
-      debugPrint('Enter PiP manually error: $e');
+      debugPrint('Enter PiP manually error: \$e');
     }
   }
 
@@ -179,17 +164,45 @@ class _WebViewPlayerScreenState extends State<WebViewPlayerScreen> {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     super.dispose();
   }
+  
+  Widget _buildWebView() {
+    // KeepAlive is configured by GlobalKey _webViewKey to avoid rebuilding
+    return InAppWebView(
+      key: _webViewKey,
+      initialUrlRequest: URLRequest(url: WebUri(widget.channel.url)),
+      initialSettings: _settings,
+      onWebViewCreated: (controller) {
+        _controller = controller;
+      },
+      onLoadStart: (controller, url) {
+        setState(() {
+          _isLoading = true;
+        });
+      },
+      onLoadStop: (controller, url) async {
+        setState(() {
+          _isLoading = false;
+        });
+        _injectImmersiveMode();
+      },
+      onProgressChanged: (controller, progress) {
+        setState(() {
+          _loadingProgress = progress;
+        });
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return PipWidget(
-      child: _buildMainView(),
       pipChild: Scaffold(
         backgroundColor: Colors.black,
         body: Center(
-          child: WebViewWidget(controller: _controller),
+          child: _buildWebView(),
         ),
       ),
+      child: _buildMainView(),
     );
   }
 
@@ -199,7 +212,7 @@ class _WebViewPlayerScreenState extends State<WebViewPlayerScreen> {
         backgroundColor: Colors.black,
         body: Stack(
           children: [
-            WebViewWidget(controller: _controller),
+            _buildWebView(),
             Positioned(
               top: 8,
               right: 8,
@@ -278,7 +291,7 @@ class _WebViewPlayerScreenState extends State<WebViewPlayerScreen> {
           const SizedBox(width: 4),
           _buildIconButton(
             icon: Icons.refresh,
-            onTap: () => _controller.reload(),
+            onTap: () => _controller?.reload(),
           ),
           const SizedBox(width: 12),
         ],
@@ -298,7 +311,7 @@ class _WebViewPlayerScreenState extends State<WebViewPlayerScreen> {
           Expanded(
             child: ClipRRect(
               borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-              child: WebViewWidget(controller: _controller),
+              child: _buildWebView(),
             ),
           ),
           // Bottom info bar
@@ -344,7 +357,7 @@ class _WebViewPlayerScreenState extends State<WebViewPlayerScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: AppTheme.tertiaryContainer.withValues(alpha: 0.15),
+               color: AppTheme.tertiaryContainer.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
