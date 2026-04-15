@@ -18,28 +18,24 @@ jobs:
         include:
           - os: ubuntu-latest
             platform: android
-            buildCommand: flutter build apk --release
-            artifactName: app-release.apk
-            artifactPath: build/app/outputs/flutter-apk/app-release.apk
+            buildCommand: flutter build apk --release && mv build/app/outputs/flutter-apk/app-release.apk build/app/outputs/flutter-apk/NodeRadio-Android-${{ github.ref_name }}.apk
+            artifactPath: build/app/outputs/flutter-apk/NodeRadio-Android*.apk
 
           - os: macos-latest
             platform: ios
             # Use no-codesign to bypass apple developer cert requirements on CI
-            buildCommand: flutter build ios --release --no-codesign && mkdir -p build/ios/Payload && cp -R build/ios/iphoneos/Runner.app build/ios/Payload/ && cd build/ios && zip -ry NodeRadio-iOS.zip Payload/
-            artifactName: NodeRadio-iOS.zip
-            artifactPath: build/ios/NodeRadio-iOS.zip
+            buildCommand: flutter build ios --release --no-codesign && mkdir -p build/ios/Payload && cp -R build/ios/iphoneos/Runner.app build/ios/Payload/ && cd build/ios && zip -ry NodeRadio-iOS-${{ github.ref_name }}.zip Payload/
+            artifactPath: build/ios/NodeRadio-iOS-*.zip
 
           - os: macos-latest
             platform: macos
-            buildCommand: flutter build macos --release && cd build/macos/Build/Products/Release && zip -ry NodeRadio-macOS.zip noderadio.app
-            artifactName: NodeRadio-macOS.zip
-            artifactPath: build/macos/Build/Products/Release/NodeRadio-macOS.zip
+            buildCommand: flutter build macos --release && cd build/macos/Build/Products/Release && zip -ry NodeRadio-macOS-${{ github.ref_name }}.zip noderadio.app
+            artifactPath: build/macos/Build/Products/Release/NodeRadio-macOS-*.zip
 
           - os: windows-latest
             platform: windows
-            buildCommand: flutter build windows --release && cd build\windows\x64\runner\Release && Compress-Archive -Path * -DestinationPath NodeRadio-Windows.zip
-            artifactName: NodeRadio-Windows.zip
-            artifactPath: build/windows/x64/runner/Release/NodeRadio-Windows.zip
+            buildCommand: flutter build windows --release && cd build\windows\x64\runner\Release && out_file="NodeRadio-Windows-${{ github.ref_name }}.zip" && Compress-Archive -Path * -DestinationPath "$out_file"
+            artifactPath: build/windows/x64/runner/Release/NodeRadio-Windows-*.zip
 
     permissions:
       contents: write

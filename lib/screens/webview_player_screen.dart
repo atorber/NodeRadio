@@ -196,6 +196,54 @@ class _WebViewPlayerScreenState extends State<WebViewPlayerScreen> {
         ),
         actions: [
           _buildIconButton(
+            icon: Icons.center_focus_strong,
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('已尝试进入网页沉浸模式。')),
+              );
+              // Run a heuristic script that attempts to maximize the video wrapper
+              _controller.runJavaScript('''
+                (function() {
+                  // Attempt 1: Find any <video> tag and force it to be fullscreen
+                  var vids = document.getElementsByTagName('video');
+                  if (vids.length > 0) {
+                     var vid = vids[0];
+                     // Optionally look for a common player container like '.xgplayer' or '.player-container'
+                     var container = vid.closest('.xgplayer') || vid.closest('.video-container') || vid.parentNode;
+                     if(container) {
+                        container.style.position = 'fixed';
+                        container.style.top = '0';
+                        container.style.left = '0';
+                        container.style.width = '100vw';
+                        container.style.height = '100vh';
+                        container.style.zIndex = '999999';
+                        container.style.backgroundColor = 'black';
+                     }
+                  }
+                  
+                  // Hide common Feishu / meeting web headers and sidebars by matching typical class names heuristically
+                  var elementsToHide = document.querySelectorAll(
+                    '.header, [class*="header"], [class*="Header"], ' + 
+                    '.sidebar, [class*="sidebar"], [class*="Sidebar"], ' + 
+                    '.chat, [class*="chat"], .toolbar, [class*="bottom-bar"]'
+                  );
+                  elementsToHide.forEach(function(el) {
+                     // We only hide them if they do NOT contain the video tag
+                     if (!el.querySelector('video') && !el.closest('video')) {
+                        el.style.display = 'none';
+                     }
+                  });
+                  
+                  // Reset document body margin
+                  document.body.style.margin = '0';
+                  document.body.style.padding = '0';
+                  document.body.style.overflow = 'hidden';
+                })();
+              ''');
+            },
+          ),
+          const SizedBox(width: 4),
+          _buildIconButton(
             icon: Icons.picture_in_picture_alt,
             onTap: _enterPipManually,
           ),
