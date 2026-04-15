@@ -89,10 +89,10 @@ jobs:
 
       - name: Package Windows
         if: matrix.platform == 'windows'
-        shell: bash
+        shell: pwsh
         run: |
-          cd build/windows/x64/runner/Release
-          zip -r ../../../../../NodeRadio-Windows-${{ github.ref_name }}.zip .
+          Set-Location -Path "build\windows\x64\runner\Release"
+          Compress-Archive -Path * -DestinationPath "${{ github.workspace }}\NodeRadio-Windows-${{ github.ref_name }}.zip"
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
